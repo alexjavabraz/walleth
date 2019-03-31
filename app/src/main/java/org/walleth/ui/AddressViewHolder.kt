@@ -33,7 +33,7 @@ class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         when {
             hasKeyForForAddress -> R.drawable.ic_key
             addressBookEntry.trezorDerivationPath != null -> R.drawable.trezor_icon
-            else -> R.drawable.ic_watch_only
+            else -> R.drawable.ic_watch
         }.let { itemView.key_indicator.setImageResource(it) }
 
         if (hasKeyForForAddress) {

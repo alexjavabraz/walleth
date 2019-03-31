@@ -47,6 +47,7 @@ import org.ligi.kaxt.startActivityFromURL
 import org.ligi.kaxtui.alert
 import org.ligi.tracedroid.logging.Log
 import org.walleth.R
+import org.walleth.activities.nfc.startNFCSigningActivity
 import org.walleth.activities.qrscan.startScanActivityForResult
 import org.walleth.activities.trezor.TREZOR_REQUEST_CODE
 import org.walleth.activities.trezor.startTrezorActivity
@@ -81,6 +82,8 @@ import java.util.*
 const val TO_ADDRESS_REQUEST_CODE = 1
 const val FROM_ADDRESS_REQUEST_CODE = 2
 const val TOKEN_REQUEST_CODE = 3
+
+val isNFCTransaction = true
 
 class CreateTransactionActivity : BaseSubActivity() {
 
@@ -185,6 +188,7 @@ class CreateTransactionActivity : BaseSubActivity() {
                         (keyStore.hasKeyForForAddress(currentAddressProvider.getCurrentNeverNull()))
                         -> R.drawable.ic_key_black
 
+                        isNFCTransaction -> R.drawable.ic_nfc_black
                         else -> R.drawable.ic_action_done
                     })
                     fab.setOnClickListener {
@@ -279,12 +283,12 @@ class CreateTransactionActivity : BaseSubActivity() {
 
         address_list_button.setOnClickListener {
             currentShowCase?.hide()
-            val intent = Intent(this@CreateTransactionActivity, AddressBookActivity::class.java)
+            val intent = Intent(this@CreateTransactionActivity, AccountPickActivity::class.java)
             startActivityForResult(intent, TO_ADDRESS_REQUEST_CODE)
         }
 
         from_address_list_button.setOnClickListener {
-            val intent = Intent(this@CreateTransactionActivity, AddressBookActivity::class.java)
+            val intent = Intent(this@CreateTransactionActivity, AccountPickActivity::class.java)
             startActivityForResult(intent, FROM_ADDRESS_REQUEST_CODE)
         }
 
@@ -378,6 +382,7 @@ class CreateTransactionActivity : BaseSubActivity() {
         when {
 
             isTrezorTransaction -> startTrezorActivity(TransactionParcel(transaction))
+            isNFCTransaction -> startNFCSigningActivity(TransactionParcel(transaction))
             else -> GlobalScope.launch(Dispatchers.Main) {
 
                 fab_progress_bar.visibility = View.VISIBLE

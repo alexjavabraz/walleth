@@ -30,33 +30,24 @@ import org.kethereum.wallet.loadKeysFromWalletJsonString
 import org.koin.android.ext.android.inject
 import org.ligi.kaxt.setVisibility
 import org.ligi.kaxtui.alert
-import org.threeten.bp.LocalDateTime
 import org.walleth.R
 import org.walleth.activities.qrscan.startScanActivityForResult
-import org.walleth.data.AppDatabase
-import org.walleth.data.DEFAULT_ETHEREUM_BIP44_PATH
-import org.walleth.data.DEFAULT_PASSWORD
-import org.walleth.data.addressbook.AddressBookEntry
+import org.walleth.data.*
 import org.walleth.khex.hexToByteArray
-import org.walleth.util.hasText
 import java.io.FileNotFoundException
 
 enum class KeyType {
     ECDSA, JSON, WORDLIST
 }
 
-
-private const val KEY_INTENT_EXTRA_TYPE = "TYPE"
-private const val KEY_INTENT_EXTRA_KEYCONTENT = "KEY"
-
-fun Context.getKeyImportIntent(key: String, type: KeyType) = Intent(this, ImportActivity::class.java).apply {
+fun Context.getKeyImportIntent(key: String, type: KeyType) = Intent(this, ImportKeyActivity::class.java).apply {
     putExtra(KEY_INTENT_EXTRA_TYPE, type.toString())
     putExtra(KEY_INTENT_EXTRA_KEYCONTENT, key)
 }
 
 private const val READ_REQUEST_CODE = 42
 
-class ImportActivity : BaseSubActivity() {
+class ImportKeyActivity : BaseSubActivity() {
 
     private val keyStore: KeyStore by inject()
     private val appDatabase: AppDatabase by inject()
@@ -105,7 +96,7 @@ class ImportActivity : BaseSubActivity() {
         }
         importing = true
 
-        val alert = AlertDialog.Builder(this@ImportActivity)
+        val alert = AlertDialog.Builder(this@ImportKeyActivity)
         fab_progress_bar.visibility = View.VISIBLE
         try {
 
@@ -132,35 +123,13 @@ class ImportActivity : BaseSubActivity() {
             if (importKey != null) {
 
                 val putExtra = Intent()
-                putExtra.putExtra("ADDRESS", importKey.cleanHex)
+                putExtra.putExtra(EXTRA_KEY_ADDRESS, importKey.cleanHex)
                 setResult(Activity.RESULT_OK, putExtra)
 
                 val address = Address(importKey.hex).withERC55Checksum()
                 alert.setMessage(getString(R.string.imported_key_alert_message, address))
                         .setTitle(getString(R.string.dialog_title_success))
 
-                val oldEntry = async(Dispatchers.Default) {
-                    appDatabase.addressBook.byAddress(importKey)
-                }.await()
-
-                val accountName = if (!account_name.hasText()) {
-                    oldEntry?.name ?: getString(R.string.imported_key_default_entry_name)
-                } else {
-                    account_name.text
-                }
-                val note = oldEntry?.note
-                        ?: getString(R.string.imported_key_entry_note, LocalDateTime.now())
-
-
-                async(Dispatchers.Default) {
-                    val newEntry = AddressBookEntry(
-                            name = accountName.toString(),
-                            address = importKey,
-                            note = note, isNotificationWanted = false,
-                            trezorDerivationPath = null
-                    )
-                    appDatabase.addressBook.upsert(newEntry)
-                }.await()
             }
 
             alert.setPositiveButton(android.R.string.ok) { _, _ ->

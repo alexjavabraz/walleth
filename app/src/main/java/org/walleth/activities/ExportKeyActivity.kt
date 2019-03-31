@@ -29,10 +29,9 @@ import org.ligi.kaxt.doAfterEdit
 import org.ligi.kaxt.setVisibility
 import org.walleth.R
 import org.walleth.data.DEFAULT_PASSWORD
+import org.walleth.data.REQUEST_CODE_SELECT_TOKEN
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
-
-const val REQUEST_CODE_SELECT_TOKEN = 4205
 
 class ExportKeyActivity : AddressReceivingActivity() {
 

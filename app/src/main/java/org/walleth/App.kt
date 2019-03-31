@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.kethereum.keystore.api.InitializingFileKeyStore
 import org.kethereum.keystore.api.KeyStore
 import org.koin.android.ext.android.inject
@@ -27,11 +28,11 @@ import org.koin.dsl.module.module
 import org.ligi.tracedroid.TraceDroid
 import org.walletconnect.impls.FileWCSessionStore
 import org.walletconnect.impls.WCSessionStore
+import org.walleth.activities.nfc.NFCCredentialStore
 import org.walleth.contracts.FourByteDirectory
 import org.walleth.contracts.FourByteDirectoryImpl
 import org.walleth.core.TransactionNotificationService
 import org.walleth.data.AppDatabase
-import org.walleth.data.addressbook.AddressBookEntry
 import org.walleth.data.addressbook.allPrePopulationAddresses
 import org.walleth.data.blockexplorer.BlockExplorerProvider
 import org.walleth.data.config.KotprefSettings
@@ -51,6 +52,7 @@ import org.walleth.viewmodels.TransactionListViewModel
 import org.walleth.viewmodels.WalletConnectViewModel
 import java.io.File
 import java.net.Socket
+import java.security.Security
 import javax.net.SocketFactory
 
 open class App : MultiDexApplication() {
@@ -92,7 +94,7 @@ open class App : MultiDexApplication() {
         single { NetworkDefinitionProvider(get()) }
         single { BlockExplorerProvider(get()) }
         single {
-            InitializingCurrentAddressProvider(keyStore, get(), get(), applicationContext) as CurrentAddressProvider
+            InitializingCurrentAddressProvider(settings = get()) as CurrentAddressProvider
         }
         single { FourByteDirectoryImpl(get(), applicationContext) as FourByteDirectory }
 
@@ -102,6 +104,9 @@ open class App : MultiDexApplication() {
             }, get()) as WCSessionStore
         }
 
+        single {
+            NFCCredentialStore(this@App)
+        }
         viewModel { TransactionListViewModel(this@App, get(), get(), get()) }
         viewModel { WalletConnectViewModel(this@App, get(), get()) }
     }
@@ -123,6 +128,9 @@ open class App : MultiDexApplication() {
         LeakCanary.install(this)
         // Normal app init code...
 
+        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+        Security.addProvider(BouncyCastleProvider())
+
         startKoin(this, listOf(koinModule, createKoin()))
 
         if (BuildConfig.DEBUG) {
@@ -142,16 +150,6 @@ open class App : MultiDexApplication() {
             settings.addressInitVersion = 2
 
             GlobalScope.launch(Dispatchers.Default) {
-                keyStore.getAddresses().forEachIndexed { index, address ->
-
-                    appDatabase.addressBook.upsert(AddressBookEntry(
-                            name = "Default" + if (keyStore.getAddresses().size > 1) index else "",
-                            address = address,
-                            note = "default account with key",
-                            isNotificationWanted = false,
-                            trezorDerivationPath = null
-                    ))
-                }
                 appDatabase.addressBook.upsert(allPrePopulationAddresses)
             }
         }
