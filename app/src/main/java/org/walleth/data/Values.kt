@@ -28,7 +28,7 @@ const val KEY_INTENT_EXTRA_TYPE = "TYPE"
 const val KEY_INTENT_EXTRA_KEYCONTENT = "KEY"
 
 
-const val EXTRA_KEY_ADDRESS = "addess"
+const val EXTRA_KEY_ADDRESS = "address"
 const val EXTRA_KEY_ACCOUNT_TYPE = "account_type"
 const val EXTRA_KEY_NFC_CREDENTIALS = "nfc_credentials"
 

@@ -10,7 +10,6 @@ import kotlinx.android.parcel.Parcelize
 import kotlinx.android.synthetic.main.activity_nfc.*
 import org.kethereum.crypto.toAddress
 import org.kethereum.model.Address
-import org.koin.android.ext.android.inject
 import org.ligi.kaxtui.alert
 import org.walleth.data.EXTRA_KEY_ADDRESS
 import org.walleth.data.EXTRA_KEY_NFC_CREDENTIALS
@@ -24,8 +23,6 @@ data class NFCCredentials(var isNewCard: Boolean,
                           var puk: String? = null) : Parcelable
 
 class NFCGetAddressActivity : BaseNFCActivity() {
-
-    private val nfcCredentialStore: NFCCredentialStore by inject()
 
     var credentials: NFCCredentials? = null
 

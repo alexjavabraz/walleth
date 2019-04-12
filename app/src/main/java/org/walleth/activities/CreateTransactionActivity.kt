@@ -51,12 +51,8 @@ import org.walleth.activities.nfc.startNFCSigningActivity
 import org.walleth.activities.qrscan.startScanActivityForResult
 import org.walleth.activities.trezor.TREZOR_REQUEST_CODE
 import org.walleth.activities.trezor.startTrezorActivity
-import org.walleth.data.AppDatabase
-import org.walleth.data.DEFAULT_GAS_LIMIT_ERC_20_TX
-import org.walleth.data.DEFAULT_GAS_LIMIT_ETH_TX
-import org.walleth.data.DEFAULT_PASSWORD
-import org.walleth.data.addressbook.getByAddressAsync
-import org.walleth.data.addressbook.resolveNameAsync
+import org.walleth.data.*
+import org.walleth.data.addressbook.*
 import org.walleth.data.balances.Balance
 import org.walleth.data.config.Settings
 import org.walleth.data.exchangerate.ExchangeRateProvider
@@ -83,8 +79,6 @@ const val TO_ADDRESS_REQUEST_CODE = 1
 const val FROM_ADDRESS_REQUEST_CODE = 2
 const val TOKEN_REQUEST_CODE = 3
 
-val isNFCTransaction = true
-
 class CreateTransactionActivity : BaseSubActivity() {
 
     private var currentERC681: ERC681 = ERC681()
@@ -107,6 +101,7 @@ class CreateTransactionActivity : BaseSubActivity() {
     private var currentShowCase: ShowcaseView? = null
     private var currentTopSnackBar: TSnackbar? = null
 
+    private var currentAccount: AddressBookEntry? = null
 
     private val amountController by lazy {
         ValueViewController(amount_value, exchangeRateProvider, settings)
@@ -126,6 +121,7 @@ class CreateTransactionActivity : BaseSubActivity() {
                     storeDefaultGasPriceAndFinish()
                 }
             }
+            /*
             FROM_ADDRESS_REQUEST_CODE -> {
                 data?.let {
                     if (data.hasExtra("HEX")) {
@@ -133,12 +129,13 @@ class CreateTransactionActivity : BaseSubActivity() {
                     }
                 }
             }
+            */
             TOKEN_REQUEST_CODE -> {
                 onCurrentTokenChanged()
             }
             else -> data?.let {
-                if (data.hasExtra("HEX")) {
-                    setToFromURL(data.getStringExtra("HEX"), fromUser = true)
+                if (data.hasExtra(EXTRA_KEY_ADDRESS)) {
+                    setToFromURL(data.getStringExtra(EXTRA_KEY_ADDRESS), fromUser = true)
                 } else if (data.hasExtra("SCAN_RESULT")) {
                     setToFromURL(data.getStringExtra("SCAN_RESULT"), fromUser = true)
                 }
@@ -178,8 +175,9 @@ class CreateTransactionActivity : BaseSubActivity() {
         currentAddressProvider.observe(this, Observer { address ->
             address?.let {
                 appDatabase.addressBook.getByAddressAsync(address) { entry ->
+                    currentAccount = entry
                     from_address.text = entry?.name
-                    val isTrezorTransaction = entry?.trezorDerivationPath != null
+                    val isTrezorTransaction = entry?.isTrezor() == true
 
                     fab.setImageResource(when {
                         isTrezorTransaction
@@ -188,11 +186,11 @@ class CreateTransactionActivity : BaseSubActivity() {
                         (keyStore.hasKeyForForAddress(currentAddressProvider.getCurrentNeverNull()))
                         -> R.drawable.ic_key_black
 
-                        isNFCTransaction -> R.drawable.ic_nfc_black
+                        entry.isNFC() -> R.drawable.ic_nfc_black
                         else -> R.drawable.ic_action_done
                     })
                     fab.setOnClickListener {
-                        onFabClick(isTrezorTransaction)
+                        onFabClick()
                     }
                 }
             }
@@ -319,9 +317,8 @@ class CreateTransactionActivity : BaseSubActivity() {
         }
     }
 
-    private fun onFabClick(isTrezorTransaction: Boolean) {
+    private fun onFabClick() {
         if (to_address.text.isEmpty() || currentToAddress == null) {
-
 
             currentShowCase = ShowcaseView.Builder(this)
                     .setTarget(ViewTarget(R.id.address_list_button, this))
@@ -357,12 +354,12 @@ class CreateTransactionActivity : BaseSubActivity() {
         } else if (!nonce_input.hasText()) {
             alert(title = R.string.nonce_invalid, message = R.string.please_enter_name)
         } else {
-            if (currentTokenProvider.getCurrent().isRootToken() && currentERC681?.function == null && amountController.getValueOrZero() == ZERO) {
-                question(R.string.create_tx_zero_amount, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction(isTrezorTransaction) })
-            } else if (!currentTokenProvider.getCurrent().isRootToken() && amountController.getValueOrZero()?:ZERO > currentBalanceSafely()) {
-                question(R.string.create_tx_negative_token_balance, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction(isTrezorTransaction) })
+            if (currentTokenProvider.getCurrent().isRootToken() && currentERC681.function == null && amountController.getValueOrZero() == ZERO) {
+                question(R.string.create_tx_zero_amount, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction() })
+            } else if (!currentTokenProvider.getCurrent().isRootToken() && amountController.getValueOrZero() > currentBalanceSafely()) {
+                question(R.string.create_tx_negative_token_balance, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction() })
             } else {
-                startTransaction(isTrezorTransaction)
+                startTransaction()
             }
         }
     }
@@ -376,13 +373,13 @@ class CreateTransactionActivity : BaseSubActivity() {
         amountController.setEnabled(!isShowcaseViewShown)
     }
 
-    private fun startTransaction(isTrezorTransaction: Boolean) {
+    private fun startTransaction() {
         val transaction = createTransaction()
 
         when {
 
-            isTrezorTransaction -> startTrezorActivity(TransactionParcel(transaction))
-            isNFCTransaction -> startNFCSigningActivity(TransactionParcel(transaction))
+            currentAccount.isTrezor() -> startTrezorActivity(TransactionParcel(transaction))
+            currentAccount.isNFC() -> startNFCSigningActivity(TransactionParcel(transaction))
             else -> GlobalScope.launch(Dispatchers.Main) {
 
                 fab_progress_bar.visibility = View.VISIBLE
@@ -472,17 +469,9 @@ class CreateTransactionActivity : BaseSubActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString("ERC67", currentERC681?.generateURL())
+        outState.putString("ERC67", currentERC681.generateURL())
         outState.putString("lastERC67", lastWarningURI)
         super.onSaveInstanceState(outState)
-    }
-
-    private fun setFromAddress(address: Address) {
-        if (currentAddressProvider.value != address) {
-            currentBalance = null
-            from_address.text = address.hex
-            currentAddressProvider.setCurrent(address)
-        }
     }
 
     private fun setToFromURL(uri: String?, fromUser: Boolean) {

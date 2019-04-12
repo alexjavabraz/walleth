@@ -1,5 +1,8 @@
 package org.walleth.ui
 
+import android.content.res.ColorStateList
+import android.support.v4.content.ContextCompat
+import android.support.v4.widget.ImageViewCompat
 import android.support.v7.widget.RecyclerView
 import android.view.View
 import android.view.View.GONE
@@ -14,6 +17,8 @@ import org.walleth.activities.ExportKeyActivity
 import org.walleth.activities.startAddressReceivingActivity
 import org.walleth.data.AppDatabase
 import org.walleth.data.addressbook.AddressBookEntry
+import org.walleth.data.addressbook.isNFC
+import org.walleth.data.addressbook.isTrezor
 
 class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
@@ -32,7 +37,8 @@ class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val hasKeyForForAddress = keyStore.hasKeyForForAddress(addressBookEntry.address)
         when {
             hasKeyForForAddress -> R.drawable.ic_key
-            addressBookEntry.trezorDerivationPath != null -> R.drawable.trezor_icon
+            addressBookEntry.isTrezor() -> R.drawable.trezor_icon
+            addressBookEntry.isNFC() -> R.drawable.ic_nfc_black
             else -> R.drawable.ic_watch
         }.let { itemView.key_indicator.setImageResource(it) }
 
@@ -40,6 +46,9 @@ class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             itemView.key_indicator.setOnClickListener {
                 context.startAddressReceivingActivity(addressBookEntry.address, ExportKeyActivity::class.java)
             }
+            ImageViewCompat.setImageTintList(itemView.key_indicator, ColorStateList.valueOf(ContextCompat.getColor(context, R.color.colorAccent)))
+        } else {
+            ImageViewCompat.setImageTintList(itemView.key_indicator, ColorStateList.valueOf(ContextCompat.getColor(context, R.color.fgColor)))
         }
 
         if (addressBookEntry.note == null || addressBookEntry.note!!.isBlank()) {

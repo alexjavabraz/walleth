@@ -6,9 +6,8 @@ import android.os.Bundle
 import kotlinx.android.synthetic.main.activity_nfc.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.kethereum.crypto.toAddress
 import org.kethereum.functions.encodeRLP
 import org.kethereum.keccakshortcut.keccak
 import org.koin.android.ext.android.inject
@@ -21,10 +20,6 @@ import org.walleth.data.transactions.toEntity
 import org.walleth.kethereum.android.TransactionParcel
 import org.walleth.khex.toHexString
 
-const val TREZOR_REQUEST_CODE = 7689
-
-private const val ADDRESS_HEX_KEY = "address_hex"
-private const val ADDRESS_PATH = "address_path"
 
 fun Activity.startNFCSigningActivity(transactionParcel: TransactionParcel) {
     val trezorIntent = Intent(this, NFCSignTransactionActivity::class.java).putExtra("TX", transactionParcel)
@@ -56,43 +51,36 @@ class NFCSignTransactionActivity : BaseNFCActivity() {
 
             try {
 
-                setText("Connected")
+                if (!nfcCredentialStore.hasPairing(channel.getCardInfo().instanceUID)) {
+                    setText("no pairing")
+                } else {
+                    setText("pairing")
 
-                channel.commandSet.autoPair("KeycardTest")
+                    channel.commandSet.pairing = nfcCredentialStore.getPairing(channel.getCardInfo().instanceUID)
 
-                setText("Paired")
-                channel.commandSet.autoOpenSecureChannel()
+                    setText("open secure channel")
+                    channel.commandSet.autoOpenSecureChannel()
 
-                setText("Secured channel")
-                channel.commandSet.verifyPIN(pin)
+                    setText("verify PIN")
+                    channel.commandSet.verifyPIN(pin)
 
-                setText("PIN")
+                    setText("signing")
 
-                val oldHash = transaction.transaction.txHash
+                    val oldHash = transaction.transaction.txHash
 
-                val address = channel.toPublicKey().toAddress()
+                    val signedTransaction = channel.sign(transaction.transaction)
 
-                val signedTransaction = channel.sign(transaction.transaction)
-
-                setText("Signing as $address")
-
-                channel.commandSet.unpairOthers()
-                channel.commandSet.autoUnpair()
-
-                setText("Unpaired")
-
-
-
-                GlobalScope.async (Dispatchers.Main) {
-                    withContext(Dispatchers.Default) {
-                        transaction.transaction.txHash = signedTransaction.encodeRLP().keccak().toHexString()
-                        appDatabase.inTransaction {
-                            oldHash?.let { transactions.deleteByHash(it) }
-                            transactions.upsert(transaction.transaction.toEntity(signedTransaction.signatureData, TransactionState()))
+                    GlobalScope.launch (Dispatchers.Main) {
+                        withContext(Dispatchers.Default) {
+                            transaction.transaction.txHash = signedTransaction.encodeRLP().keccak().toHexString()
+                            appDatabase.inTransaction {
+                                oldHash?.let { transactions.deleteByHash(it) }
+                                transactions.upsert(transaction.transaction.toEntity(signedTransaction.signatureData, TransactionState()))
+                            }
                         }
+                        setResult(RESULT_OK, Intent().apply { putExtra("TXHASH", transaction.transaction.txHash) })
+                        finish()
                     }
-                    setResult(RESULT_OK, Intent().apply { putExtra("TXHASH", transaction.transaction.txHash) })
-                    finish()
                 }
 
             } catch (e: Exception) {

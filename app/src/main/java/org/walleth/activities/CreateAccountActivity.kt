@@ -46,6 +46,7 @@ class CreateAccountActivity : BaseSubActivity() {
     private var trezorPath: String? = null
 
     private var currentType: String? = null
+    private var currentAddress: Address? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,13 +86,44 @@ class CreateAccountActivity : BaseSubActivity() {
                                     name = nameInput.text.toString(),
                                     address = address,
                                     note = noteInput.text.toString(),
-                                    trezorDerivationPath = trezorPath,
+                                    linkedKeyURI = null,
                                     isNotificationWanted = notify_checkbox.isChecked)
                             )
                         }
                         setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_KEY_ADDRESS, address.hex))
                         finish()
                     }
+
+                }
+
+                ACCOUNT_TYPE_NFC -> {
+
+                    GlobalScope.launch(Dispatchers.Main) {
+                        withContext(Dispatchers.Default) {
+                            appDatabase.addressBook.upsert(AddressBookEntry(
+                                    name = nameInput.text.toString(),
+                                    address = currentAddress!!,
+                                    note = noteInput.text.toString(),
+                                    linkedKeyURI = "$ACCOUNT_TYPE_NFC:",
+                                    isNotificationWanted = notify_checkbox.isChecked)
+                            )
+                        }
+                        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_KEY_ADDRESS, currentAddress!!.hex))
+                        finish()
+                    }
+                    /*GlobalScope.launch(Dispatchers.Main) {
+                        withContext(Dispatchers.Default) {
+                            appDatabase.addressBook.upsert(AddressBookEntry(
+                                    name = nameInput.text.toString(),
+                                    address = address,
+                                    note = noteInput.text.toString(),
+                                    linkedKeyURI = null,
+                                    isNotificationWanted = notify_checkbox.isChecked)
+                            )
+                        }
+                        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_KEY_ADDRESS, address.hex))
+                        finish()
+                    }*/
 
                 }
             }
@@ -141,8 +173,8 @@ class CreateAccountActivity : BaseSubActivity() {
             type_select_button.text = "select"
         }).let { currentType ->
             type_image.setVisibility(true)
-            val accountType=accountTypeMap[currentType]
-            type_image.setImageResource(accountType?.drawable?:R.drawable.ic_warning_black_24dp)
+            val accountType = accountTypeMap[currentType]
+            type_image.setImageResource(accountType?.drawable ?: R.drawable.ic_warning_black_24dp)
 
             type_select_button.text = "switch"
         }
@@ -171,6 +203,7 @@ class CreateAccountActivity : BaseSubActivity() {
                         }
 
                         ACCOUNT_TYPE_NFC -> {
+                            currentAddress = data.getStringExtra(EXTRA_KEY_ADDRESS)?.let { Address(it) }
                             currentType = ACCOUNT_TYPE_NFC
                             applyViewModel()
                         }

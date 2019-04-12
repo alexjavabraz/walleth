@@ -51,7 +51,7 @@ abstract class BaseAddressBookActivity : BaseSubActivity() {
         recycler_view.layoutManager = LinearLayoutManager(this)
 
         fab.setOnClickListener {
-            startActivityFromClass(NewAccountTypeSelectActivity::class.java)
+            startActivityFromClass(CreateAccountActivity::class.java)
         }
 
         appDatabase.addressBook.allLiveData().observe(this, Observer { items ->
