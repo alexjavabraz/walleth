@@ -23,8 +23,8 @@ import kotlinx.android.synthetic.main.activity_create_transaction.*
 import kotlinx.android.synthetic.main.value.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.kethereum.contract.abi.types.convertStringToABIType
 import org.kethereum.eip155.extractChainID
 import org.kethereum.eip155.signViaEIP155
@@ -121,6 +121,12 @@ class CreateTransactionActivity : BaseSubActivity() {
                     storeDefaultGasPriceAndFinish()
                 }
             }
+
+            REQUEST_CODE_ENTER_PASSWORD -> {
+                if (resultCode == Activity.RESULT_OK) {
+                    startTransaction(data?.getStringExtra(EXTRA_KEY_PWD), createTransaction())
+                }
+            }
             /*
             FROM_ADDRESS_REQUEST_CODE -> {
                 data?.let {
@@ -177,18 +183,12 @@ class CreateTransactionActivity : BaseSubActivity() {
                 appDatabase.addressBook.getByAddressAsync(address) { entry ->
                     currentAccount = entry
                     from_address.text = entry?.name
-                    val isTrezorTransaction = entry?.isTrezor() == true
-
-                    fab.setImageResource(when {
-                        isTrezorTransaction
-                        -> R.drawable.trezor_icon_black
-
-                        (keyStore.hasKeyForForAddress(currentAddressProvider.getCurrentNeverNull()))
-                        -> R.drawable.ic_key_black
-
-                        entry.isNFC() -> R.drawable.ic_nfc_black
-                        else -> R.drawable.ic_action_done
-                    })
+                    val drawable = if (entry?.isTrezor() == true) {
+                        R.drawable.trezor_icon
+                    } else {
+                        accountTypeMap[entry.getSpec()?.type]?.drawable
+                    }
+                    fab.setImageResource(drawable ?: R.drawable.ic_action_done)
                     fab.setOnClickListener {
                         onFabClick()
                     }
@@ -355,11 +355,11 @@ class CreateTransactionActivity : BaseSubActivity() {
             alert(title = R.string.nonce_invalid, message = R.string.please_enter_name)
         } else {
             if (currentTokenProvider.getCurrent().isRootToken() && currentERC681.function == null && amountController.getValueOrZero() == ZERO) {
-                question(R.string.create_tx_zero_amount, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction() })
+                question(R.string.create_tx_zero_amount, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> prepareTransaction() })
             } else if (!currentTokenProvider.getCurrent().isRootToken() && amountController.getValueOrZero() > currentBalanceSafely()) {
-                question(R.string.create_tx_negative_token_balance, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> startTransaction() })
-            } else {
-                startTransaction()
+                question(R.string.create_tx_negative_token_balance, R.string.alert_problem_title, DialogInterface.OnClickListener { _, _ -> prepareTransaction() })
+            } else if (currentAccount.isTrezor()) else {
+                prepareTransaction()
             }
         }
     }
@@ -373,49 +373,56 @@ class CreateTransactionActivity : BaseSubActivity() {
         amountController.setEnabled(!isShowcaseViewShown)
     }
 
-    private fun startTransaction() {
-        val transaction = createTransaction()
+    private fun prepareTransaction() {
 
-        when {
-
-            currentAccount.isTrezor() -> startTrezorActivity(TransactionParcel(transaction))
-            currentAccount.isNFC() -> startNFCSigningActivity(TransactionParcel(transaction))
-            else -> GlobalScope.launch(Dispatchers.Main) {
-
-                fab_progress_bar.visibility = View.VISIBLE
-                fab.isEnabled = false
-
-                val error: String? = GlobalScope.async(Dispatchers.Default) {
-                    try {
-                        val signatureData = keyStore.getKeyForAddress(currentAddressProvider.getCurrentNeverNull(), DEFAULT_PASSWORD)?.let {
-                            Snackbar.make(fab, "Signing transaction", Snackbar.LENGTH_INDEFINITE).show()
-                            transaction.signViaEIP155(it, networkDefinitionProvider.getCurrent().chain)
-                        }
-
-                        currentSignatureData = signatureData
-
-                        currentTxHash = transaction.encodeRLP(signatureData).keccak().toHexString()
-                        transaction.txHash = currentTxHash
+        when (currentAccount.getSpec()?.type) {
+            ACCOUNT_TYPE_PIN_PROTECTED -> showAccountPinDialog { pwd ->
+                startTransaction(pwd, createTransaction())
+            }
+            ACCOUNT_TYPE_PASSWORD_PROTECTED -> startActivityForResult(Intent(this, RequestPasswordActivity::class.java), REQUEST_CODE_ENTER_PASSWORD)
+            ACCOUNT_TYPE_NFC -> startNFCSigningActivity(TransactionParcel(createTransaction()))
+            ACCOUNT_TYPE_TREZOR -> startTrezorActivity(TransactionParcel(createTransaction()))
+            ACCOUNT_TYPE_BURNER -> startTransaction(DEFAULT_PASSWORD, createTransaction())
+        }
+    }
 
 
-                        val entity = transaction.toEntity(signatureData = signatureData, transactionState = TransactionState())
-                        appDatabase.transactions.upsert(entity)
-                        null
-                    } catch (e: Exception) {
-                        e.message
+    private fun startTransaction(password: String?, transaction: Transaction) {
+        GlobalScope.launch(Dispatchers.Main) {
+
+            fab_progress_bar.visibility = View.VISIBLE
+            fab.isEnabled = false
+
+            val error: String? = withContext(Dispatchers.Default) {
+                try {
+                    val currentAddress = currentAddressProvider.getCurrentNeverNull()
+                    val signatureData = keyStore.getKeyForAddress(currentAddress, password ?: DEFAULT_PASSWORD)?.let {
+                        Snackbar.make(fab, "Signing transaction", Snackbar.LENGTH_INDEFINITE).show()
+                        transaction.signViaEIP155(it, networkDefinitionProvider.getCurrent().chain)
                     }
-                }.await()
 
-                fab_progress_bar.visibility = View.INVISIBLE
-                fab.isEnabled = true
+                    currentSignatureData = signatureData
 
-                if (error != null) {
-                    alert("Could not sign transaction: $error")
-                } else {
-                    storeDefaultGasPriceAndFinish()
+                    currentTxHash = transaction.encodeRLP(signatureData).keccak().toHexString()
+                    transaction.txHash = currentTxHash
+
+
+                    val entity = transaction.toEntity(signatureData = signatureData, transactionState = TransactionState())
+                    appDatabase.transactions.upsert(entity)
+                    null
+                } catch (e: Exception) {
+                    e.message
                 }
             }
 
+            fab_progress_bar.visibility = View.INVISIBLE
+            fab.isEnabled = true
+
+            if (error != null) {
+                alert("Could not sign transaction: $error")
+            } else {
+                storeDefaultGasPriceAndFinish()
+            }
         }
     }
 

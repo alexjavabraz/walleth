@@ -14,11 +14,11 @@ import org.kethereum.keystore.api.KeyStore
 import org.walleth.R
 import org.walleth.activities.EditAccountActivity
 import org.walleth.activities.ExportKeyActivity
+import org.walleth.activities.accountTypeMap
 import org.walleth.activities.startAddressReceivingActivity
 import org.walleth.data.AppDatabase
 import org.walleth.data.addressbook.AddressBookEntry
-import org.walleth.data.addressbook.isNFC
-import org.walleth.data.addressbook.isTrezor
+import org.walleth.data.addressbook.getSpec
 
 class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
@@ -35,12 +35,9 @@ class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         itemView.address_name.text = addressBookEntry.name
 
         val hasKeyForForAddress = keyStore.hasKeyForForAddress(addressBookEntry.address)
-        when {
-            hasKeyForForAddress -> R.drawable.ic_key
-            addressBookEntry.isTrezor() -> R.drawable.trezor_icon
-            addressBookEntry.isNFC() -> R.drawable.ic_nfc_black
-            else -> R.drawable.ic_watch
-        }.let { itemView.key_indicator.setImageResource(it) }
+        accountTypeMap[addressBookEntry.getSpec()?.type]?.drawable.let {
+            itemView.key_indicator.setImageResource(it ?: R.drawable.ic_watch)
+        }
 
         if (hasKeyForForAddress) {
             itemView.key_indicator.setOnClickListener {

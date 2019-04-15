@@ -18,7 +18,8 @@ fun Activity.showPINDialog(
         onCancel: () -> Unit,
         labelButtons: Boolean = false,
         pinPadMapping: List<Int?> = KEY_MAP_TOUCH,
-        maxLength: Int = 10
+        maxLength: Int = 10,
+        title: Int = R.string.please_enter_your_pin
 ) {
     val view = inflate(R.layout.pinput)
     var dialogPin = ""
@@ -52,11 +53,14 @@ fun Activity.showPINDialog(
     if (!isFinishing) {
         AlertDialog.Builder(this)
                 .setView(view)
-                .setTitle(R.string.trezor_please_enter_your_pin)
+                .setTitle(title)
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     onPIN.invoke(dialogPin)
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ ->
+                    onCancel.invoke()
+                }
+                .setOnCancelListener {
                     onCancel.invoke()
                 }
                 .show()

@@ -3,27 +3,37 @@ package org.walleth.data.addressbook
 import android.arch.persistence.room.ColumnInfo
 import android.arch.persistence.room.Entity
 import android.arch.persistence.room.PrimaryKey
+import android.os.Parcelable
+import com.squareup.moshi.Moshi
+import kotlinx.android.parcel.Parcelize
 import org.kethereum.model.Address
-import org.walleth.data.ACCOUNT_TYPE_NFC
 import org.walleth.data.ACCOUNT_TYPE_TREZOR
 
-fun AddressBookEntry?.isTrezor() = this?.linkedKeyURI?.startsWith("$ACCOUNT_TYPE_TREZOR:") == true
-fun AddressBookEntry.getTrezorDerivationPath() = when {
-    linkedKeyURI?.startsWith("$ACCOUNT_TYPE_TREZOR:") == true -> linkedKeyURI?.removePrefix("$ACCOUNT_TYPE_TREZOR:")
-    linkedKeyURI?.startsWith("m/") == true -> linkedKeyURI.also{
-        linkedKeyURI = "$ACCOUNT_TYPE_TREZOR:$linkedKeyURI"
+@Parcelize
+data class AccountKeySpec(
+        val type: String,
+        val derivationPath: String? = null,
+        val source: String? = null,
+
+        val initPayload: String? = null
+) : Parcelable
+
+private val specAdapter = Moshi.Builder().build().adapter(AccountKeySpec::class.java)
+
+fun AccountKeySpec.toJSON() = specAdapter.toJson(this)
+
+fun AddressBookEntry?.getSpec() = this?.keySpec?.let { specAdapter.fromJson(it) }
+fun AddressBookEntry?.isTrezor() = this?.keySpec?.startsWith("m/") == true || getSpec()?.type == ACCOUNT_TYPE_TREZOR
+
+fun AddressBookEntry.getTrezorDerivationPath(): String? {
+    if (keySpec?.startsWith("m/") == true) {
+        keySpec = specAdapter.toJson(AccountKeySpec(type = ACCOUNT_TYPE_TREZOR, derivationPath = keySpec))
     }
-    else -> null
+    return getSpec()?.derivationPath
 }
 
-fun AddressBookEntry?.isNFC() = this?.linkedKeyURI?.startsWith("$ACCOUNT_TYPE_NFC:") == true
-fun AddressBookEntry.getNFCDerivationPath() = when {
-    linkedKeyURI?.startsWith("$ACCOUNT_TYPE_TREZOR:") == true -> linkedKeyURI?.removePrefix("$ACCOUNT_TYPE_TREZOR:")
-    linkedKeyURI?.startsWith("m/") == true -> linkedKeyURI.also{
-        linkedKeyURI = "$ACCOUNT_TYPE_TREZOR:$linkedKeyURI"
-    }
-    else -> null
-}
+fun AddressBookEntry.getNFCDerivationPath() = getSpec()?.derivationPath
+fun AddressBookEntry?.isAccountType(accountType: String) = getSpec()?.type == accountType
 
 
 @Entity(tableName = "addressbook")
@@ -40,7 +50,7 @@ data class AddressBookEntry(
         var isNotificationWanted: Boolean = false,
 
         @ColumnInfo(name = "trezor_derivation_path") // TODO with the next migration we should rename the column
-        var linkedKeyURI: String? = null,
+        var keySpec: String? = null,
 
         var starred: Boolean = false,
 
