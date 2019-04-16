@@ -2,6 +2,7 @@ package org.walleth.ui
 
 import android.app.Activity
 import android.support.design.button.MaterialButton
+import android.support.v4.content.ContextCompat
 import android.support.v7.app.AlertDialog
 import android.widget.GridLayout
 import kotlinx.android.synthetic.main.pinput.view.*
@@ -25,7 +26,7 @@ fun Activity.showPINDialog(
     var dialogPin = ""
     val displayPin = {
         view.pin_textview.text = "*".repeat(dialogPin.length)
-        view.pin_back.setVisibility(!dialogPin.isEmpty())
+        view.pin_back.setVisibility(dialogPin.isNotEmpty())
     }
     displayPin.invoke()
     pinPadMapping.forEach { number ->
@@ -37,6 +38,7 @@ fun Activity.showPINDialog(
                 displayPin.invoke()
             }
 
+            setTextColor(ContextCompat.getColor(this@showPINDialog, R.color.onAccent))
 
             layoutParams = GridLayout.LayoutParams().apply {
                 setMargins(5, 5, 5, 5)

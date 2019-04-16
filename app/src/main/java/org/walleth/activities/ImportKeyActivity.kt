@@ -12,7 +12,7 @@ import android.support.v7.app.AlertDialog
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import kotlinx.android.synthetic.main.activity_import_json.*
+import kotlinx.android.synthetic.main.activity_import_key.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -45,13 +45,13 @@ fun Context.getKeyImportIntent(key: String, type: KeyType) = Intent(this, Import
 
 private const val READ_REQUEST_CODE = 42
 
-class ImportKeyActivity : BaseSubActivity() {
+open class ImportKeyActivity : BaseSubActivity() {
 
     private var importing = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_import_json)
+        setContentView(R.layout.activity_import_key)
 
         intent.getStringExtra(KEY_INTENT_EXTRA_KEYCONTENT)?.let {
             key_content.setText(it)
@@ -114,9 +114,12 @@ class ImportKeyActivity : BaseSubActivity() {
 
             if (importKey != null) {
                 val initPayload = importKey.privateKey.key.toHexString() + "/" + importKey.publicKey.key.toHexString()
-                val spec = AccountKeySpec(ACCOUNT_TYPE_IMPORT, initPayload =  initPayload)
-                setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_KEY_ACCOUNTSPEC, spec))
-                finish()
+                val spec = AccountKeySpec(ACCOUNT_TYPE_IMPORT, initPayload = initPayload)
+                //setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_KEY_ACCOUNTSPEC, spec))
+                //finish()
+
+                val intent = Intent(this@ImportKeyActivity, ImportAsActivity::class.java).putExtra(EXTRA_KEY_ACCOUNTSPEC, spec)
+                startActivityForResult(intent, REQUEST_CODE_IMPORT_AS)
             } else {
                 AlertDialog.Builder(this@ImportKeyActivity).setMessage("Could not import key")
                         .setTitle(getString(R.string.dialog_title_error)).show()
@@ -157,6 +160,11 @@ class ImportKeyActivity : BaseSubActivity() {
                         }
                     }
                 }
+            }
+
+            if (requestCode == REQUEST_CODE_IMPORT_AS && resultCode == Activity.RESULT_OK) {
+                setResult(resultCode, resultData)
+                finish()
             }
         }
     }

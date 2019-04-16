@@ -25,6 +25,7 @@
                 app:srcCompat="@drawable/ic_whatshot_black_24dp"
                 android:id="@+id/bitmap_type"
                 android:padding="8dp"
+                android:layout_gravity="center_vertical"
                 app:tint="@color/colorAccent"
                 android:layout_width="48dp"
                 android:layout_height="48dp"/>

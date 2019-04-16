@@ -14,7 +14,7 @@ data class AccountKeySpec(
         val type: String,
         val derivationPath: String? = null,
         val source: String? = null,
-
+        val pwd: String? = null,
         val initPayload: String? = null
 ) : Parcelable
 

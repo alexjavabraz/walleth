@@ -4,52 +4,22 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import kotlinx.android.synthetic.main.activity_account_type_select.*
-import kotlinx.android.synthetic.main.item_account_type.view.*
 import org.walleth.R
 import org.walleth.data.*
 import org.walleth.data.addressbook.AccountKeySpec
-import org.walleth.model.ACCOUNT_TYPE_LIST
-import org.walleth.model.AccountType
 
-class AccountTypeViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-    fun bind(item: AccountType) {
-        itemView.bitmap_type.isEnabled = false
-        itemView.bitmap_type.setImageResource(item.drawable)
-        itemView.account_type_label.text = item.action
-        itemView.account_type_description.text = item.description
-        itemView.setOnClickListener {
-            item.callback.invoke(itemView.context as Activity)
-        }
-    }
-}
-
-class AccountTypeAdapter(val list: List<AccountType>) : RecyclerView.Adapter<AccountTypeViewHolder>() {
-    override fun onCreateViewHolder(p0: ViewGroup, p1: Int) = AccountTypeViewHolder(LayoutInflater.from(p0.context).inflate(R.layout.item_account_type, p0, false))
-
-
-    override fun getItemCount() = list.size
-
-    override fun onBindViewHolder(viewHolder: AccountTypeViewHolder, p1: Int) {
-        viewHolder.bind(list[p1])
-    }
-}
-
-open class NewAccountTypeSelectActivity : BaseSubActivity() {
+class ImportAsActivity : BaseSubActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_account_type_select)
 
-        supportActionBar?.subtitle = "New account"
+        supportActionBar?.subtitle = "Import as"
 
         recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = AccountTypeAdapter(ACCOUNT_TYPE_LIST)
+        recycler.adapter = AccountTypeAdapter(ACCOUNT_TYPE_LIST.filter { it.wrapsKey })
 
     }
 

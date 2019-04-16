@@ -101,9 +101,9 @@ class CreateAccountActivity : BaseSubActivity() {
 
                 ACCOUNT_TYPE_PIN_PROTECTED, ACCOUNT_TYPE_PASSWORD_PROTECTED -> {
                     val key = createEthereumKeyPair()
-                    keyStore.addKey(key, currentSpec.initPayload!!, true)
+                    keyStore.addKey(key, currentSpec.pwd!!, true)
 
-                    createAccountAndFinish(key.toAddress(), currentSpec.copy(initPayload = null))
+                    createAccountAndFinish(key.toAddress(), currentSpec.copy(pwd = null))
                 }
                 ACCOUNT_TYPE_NFC -> {
                     createAccountAndFinish(currentAddress!!, currentSpec)
