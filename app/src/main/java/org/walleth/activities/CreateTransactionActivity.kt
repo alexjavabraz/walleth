@@ -65,6 +65,7 @@ import org.walleth.kethereum.android.TransactionParcel
 import org.walleth.khex.hexToByteArray
 import org.walleth.khex.toHexString
 import org.walleth.khex.toNoPrefixHexString
+import org.walleth.model.ACCOUNT_TYPE_MAP
 import org.walleth.ui.asyncAwait
 import org.walleth.ui.chainIDAlert
 import org.walleth.ui.valueview.ValueViewController
@@ -186,7 +187,7 @@ class CreateTransactionActivity : BaseSubActivity() {
                     val drawable = if (entry?.isTrezor() == true) {
                         R.drawable.trezor_icon
                     } else {
-                        accountTypeMap[entry.getSpec()?.type]?.drawable
+                        ACCOUNT_TYPE_MAP[entry.getSpec()?.type]?.drawable
                     }
                     fab.setImageResource(drawable ?: R.drawable.ic_action_done)
                     fab.setOnClickListener {

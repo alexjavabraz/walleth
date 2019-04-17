@@ -16,20 +16,20 @@ import org.walleth.data.addressbook.AccountKeySpec
 import org.walleth.model.ACCOUNT_TYPE_LIST
 import org.walleth.model.AccountType
 
-class AccountTypeViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+class AccountTypeViewHolder(itemView: View, val inSpec: AccountKeySpec) : RecyclerView.ViewHolder(itemView) {
     fun bind(item: AccountType) {
         itemView.bitmap_type.isEnabled = false
         itemView.bitmap_type.setImageResource(item.drawable)
         itemView.account_type_label.text = item.action
         itemView.account_type_description.text = item.description
         itemView.setOnClickListener {
-            item.callback.invoke(itemView.context as Activity)
+            item.callback.invoke(itemView.context as Activity, inSpec)
         }
     }
 }
 
-class AccountTypeAdapter(val list: List<AccountType>) : RecyclerView.Adapter<AccountTypeViewHolder>() {
-    override fun onCreateViewHolder(p0: ViewGroup, p1: Int) = AccountTypeViewHolder(LayoutInflater.from(p0.context).inflate(R.layout.item_account_type, p0, false))
+class AccountTypeAdapter(val list: List<AccountType>, val inSpec: AccountKeySpec) : RecyclerView.Adapter<AccountTypeViewHolder>() {
+    override fun onCreateViewHolder(p0: ViewGroup, p1: Int) = AccountTypeViewHolder(LayoutInflater.from(p0.context).inflate(R.layout.item_account_type, p0, false), inSpec)
 
 
     override fun getItemCount() = list.size
@@ -49,7 +49,7 @@ open class NewAccountTypeSelectActivity : BaseSubActivity() {
         supportActionBar?.subtitle = "New account"
 
         recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = AccountTypeAdapter(ACCOUNT_TYPE_LIST)
+        recycler.adapter = AccountTypeAdapter(ACCOUNT_TYPE_LIST, AccountKeySpec(ACCOUNT_TYPE_NONE))
 
     }
 

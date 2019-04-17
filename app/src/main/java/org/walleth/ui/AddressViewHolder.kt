@@ -11,14 +11,15 @@ import kotlinx.android.synthetic.main.item_address_book.view.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.kethereum.keystore.api.KeyStore
+import org.ligi.kaxt.setVisibility
 import org.walleth.R
 import org.walleth.activities.EditAccountActivity
 import org.walleth.activities.ExportKeyActivity
-import org.walleth.activities.accountTypeMap
 import org.walleth.activities.startAddressReceivingActivity
 import org.walleth.data.AppDatabase
 import org.walleth.data.addressbook.AddressBookEntry
 import org.walleth.data.addressbook.getSpec
+import org.walleth.model.ACCOUNT_TYPE_MAP
 
 class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
@@ -35,10 +36,12 @@ class AddressViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         itemView.address_name.text = addressBookEntry.name
 
         val hasKeyForForAddress = keyStore.hasKeyForForAddress(addressBookEntry.address)
-        accountTypeMap[addressBookEntry.getSpec()?.type]?.drawable.let {
+        val spec = addressBookEntry.getSpec()
+        ACCOUNT_TYPE_MAP[spec?.type]?.drawable.let {
             itemView.key_indicator.setImageResource(it ?: R.drawable.ic_watch)
         }
 
+        itemView.key_indicator_source.setVisibility(spec?.source?.isNotBlank() == true)
         if (hasKeyForForAddress) {
             itemView.key_indicator.setOnClickListener {
                 context.startAddressReceivingActivity(addressBookEntry.address, ExportKeyActivity::class.java)

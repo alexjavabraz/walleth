@@ -32,6 +32,7 @@ import org.walleth.data.addressbook.AccountKeySpec
 import org.walleth.data.addressbook.AddressBookEntry
 import org.walleth.data.addressbook.toJSON
 import org.walleth.data.networks.CurrentAddressProvider
+import org.walleth.model.ACCOUNT_TYPE_MAP
 import org.walleth.util.hasText
 
 private const val HEX_INTENT_EXTRA_KEY = "HEX"
@@ -78,7 +79,12 @@ class CreateAccountActivity : BaseSubActivity() {
                 alert(title = R.string.alert_problem_title, message = R.string.please_enter_name)
                 return@setOnClickListener
             }
+            val importKey = currentSpec.initPayload?.let {
+                val split = it.split("/")
+                ECKeyPair(PrivateKey(split.first()), PublicKey(split.last()))
+            }
             when (currentSpec.type) {
+                /*
                 ACCOUNT_TYPE_IMPORT -> {
                     val split = currentSpec.initPayload!!.split("/")
                     val key = ECKeyPair(PrivateKey(split.first()), PublicKey(split.last()))
@@ -86,9 +92,10 @@ class CreateAccountActivity : BaseSubActivity() {
 
                     createAccountAndFinish(key.toAddress(), currentSpec.copy(initPayload = null))
                 }
+                */
 
                 ACCOUNT_TYPE_BURNER -> {
-                    val key = createEthereumKeyPair()
+                    val key = importKey?:createEthereumKeyPair()
                     keyStore.addKey(key, DEFAULT_PASSWORD, true)
 
                     createAccountAndFinish(key.toAddress(), currentSpec)
@@ -100,7 +107,7 @@ class CreateAccountActivity : BaseSubActivity() {
                 }
 
                 ACCOUNT_TYPE_PIN_PROTECTED, ACCOUNT_TYPE_PASSWORD_PROTECTED -> {
-                    val key = createEthereumKeyPair()
+                    val key = importKey?:createEthereumKeyPair()
                     keyStore.addKey(key, currentSpec.pwd!!, true)
 
                     createAccountAndFinish(key.toAddress(), currentSpec.copy(pwd = null))
@@ -153,7 +160,7 @@ class CreateAccountActivity : BaseSubActivity() {
         type_image.setVisibility(!noneSelected)
         type_select_button.text = if (noneSelected) "select" else "switch"
 
-        val accountType = accountTypeMap[currentSpec.type]
+        val accountType = ACCOUNT_TYPE_MAP[currentSpec.type]
         type_image.setImageResource(accountType?.drawable ?: R.drawable.ic_warning_black_24dp)
 
     }
