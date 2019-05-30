@@ -1,23 +1,23 @@
 package org.walleth.viewmodels
 
 import android.app.Application
-import android.arch.lifecycle.AndroidViewModel
-import android.arch.lifecycle.LiveData
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Transformations
-import android.arch.paging.LivePagedListBuilder
-import android.arch.paging.PagedList
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
+import androidx.paging.LivePagedListBuilder
+import androidx.paging.PagedList
 import org.ligi.kaxt.livedata.CombinatorMediatorLiveData
 import org.walleth.data.AppDatabase
+import org.walleth.data.networks.ChainInfoProvider
 import org.walleth.data.networks.CurrentAddressProvider
-import org.walleth.data.networks.NetworkDefinitionProvider
 import org.walleth.data.transactions.TransactionEntity
 import org.walleth.kethereum.model.AddressOnChain
 
 class TransactionListViewModel(app: Application,
                                appDatabase: AppDatabase,
                                currentAddressProvider: CurrentAddressProvider,
-                               networkDefinitionProvider: NetworkDefinitionProvider) : AndroidViewModel(app) {
+                               chainInfoProvider: ChainInfoProvider) : AndroidViewModel(app) {
 
 
     val isOnboardingVisible = MutableLiveData<Boolean>().apply { value = false }
@@ -29,17 +29,17 @@ class TransactionListViewModel(app: Application,
         (isOnboardingVisible.value == false) && (hasIncoming.value == false) && (hasOutgoing.value == false)
     }
 
-    private val addressOnChainMediator = CombinatorMediatorLiveData(listOf(currentAddressProvider, networkDefinitionProvider)) {
-        AddressOnChain(currentAddressProvider.getCurrentNeverNull(), networkDefinitionProvider.getCurrent().chain)
+    private val addressOnChainMediator = CombinatorMediatorLiveData(listOf(currentAddressProvider, chainInfoProvider)) {
+        AddressOnChain(currentAddressProvider.getCurrentNeverNull(), chainInfoProvider.getCurrentChainId())
     }
 
     val incomingLiveData: LiveData<PagedList<TransactionEntity>> = Transformations.switchMap(addressOnChainMediator) { addressOnChain ->
-        val incomingDataSource = appDatabase.transactions.getIncomingPaged(addressOnChain.address, addressOnChain.chain.id.value)
+        val incomingDataSource = appDatabase.transactions.getIncomingPaged(addressOnChain.address, addressOnChain.chain.value)
         LivePagedListBuilder<Int, TransactionEntity>(incomingDataSource, 50).build()
     }
 
     val outgoingLiveData: LiveData<PagedList<TransactionEntity>> = Transformations.switchMap(addressOnChainMediator) { addressOnChain ->
-        val outgoingDataSourceDataSource = appDatabase.transactions.getOutgoingPaged(addressOnChain.address, addressOnChain.chain.id.value)
+        val outgoingDataSourceDataSource = appDatabase.transactions.getOutgoingPaged(addressOnChain.address, addressOnChain.chain.value)
         LivePagedListBuilder<Int, TransactionEntity>(outgoingDataSourceDataSource, 50).build()
     }
 

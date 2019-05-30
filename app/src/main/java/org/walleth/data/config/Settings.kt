@@ -1,7 +1,6 @@
 package org.walleth.data.config
 
 import android.content.SharedPreferences
-import org.walleth.data.networks.NetworkDefinition
 import java.math.BigInteger
 
 interface Settings {
@@ -13,6 +12,7 @@ interface Settings {
 
     var addressInitVersion: Int
     var tokensInitVersion: Int
+    var dataVersion: Int
 
     var currentGoVerbosity: Int
 
@@ -35,7 +35,7 @@ interface Settings {
     fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener)
     fun unregisterListener(listener: SharedPreferences.OnSharedPreferenceChangeListener)
 
-    fun getGasPriceFor(current: NetworkDefinition): BigInteger
-    fun storeGasPriceFor(gasPrice: BigInteger, network: NetworkDefinition)
+    fun getGasPriceFor(chainId: BigInteger): BigInteger
+    fun storeGasPriceFor(gasPrice: BigInteger, chainId: BigInteger)
     fun isScreenshotsDisabled(): Boolean
 }

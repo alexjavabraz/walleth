@@ -1,62 +1,74 @@
 package org.walleth
 
-import android.arch.persistence.room.Room
 import android.content.Context
 import android.content.Intent
 import android.net.TrafficStats
 import android.os.StrictMode
-import android.support.annotation.XmlRes
-import android.support.multidex.MultiDex
-import android.support.multidex.MultiDexApplication
-import android.support.v7.app.AppCompatDelegate
-import android.support.v7.preference.PreferenceScreen
+import androidx.annotation.XmlRes
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.lifecycle.Observer
+import androidx.multidex.MultiDex
+import androidx.multidex.MultiDexApplication
+import androidx.preference.PreferenceScreen
+import androidx.room.Room
 import com.chibatching.kotpref.Kotpref
 import com.jakewharton.threetenabp.AndroidThreeTen
-import com.squareup.leakcanary.LeakCanary
+import com.squareup.moshi.FromJson
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.ToJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.kethereum.keystore.api.InitializingFileKeyStore
 import org.kethereum.keystore.api.KeyStore
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.android.startKoin
-import org.koin.android.viewmodel.ext.koin.viewModel
+import org.koin.androidx.viewmodel.ext.koin.viewModel
 import org.koin.dsl.module.module
 import org.ligi.tracedroid.TraceDroid
 import org.walletconnect.impls.FileWCSessionStore
 import org.walletconnect.impls.WCSessionStore
+import org.walleth.activities.nfc.NFCCredentialStore
 import org.walleth.contracts.FourByteDirectory
 import org.walleth.contracts.FourByteDirectoryImpl
 import org.walleth.core.TransactionNotificationService
-import org.walleth.data.AppDatabase
-import org.walleth.data.addressbook.AddressBookEntry
+import org.walleth.data.*
+import org.walleth.data.addressbook.AccountKeySpec
 import org.walleth.data.addressbook.allPrePopulationAddresses
+import org.walleth.data.addressbook.toJSON
 import org.walleth.data.blockexplorer.BlockExplorerProvider
+import org.walleth.data.chaininfo.ChainInfo
 import org.walleth.data.config.KotprefSettings
 import org.walleth.data.config.Settings
 import org.walleth.data.exchangerate.CryptoCompareExchangeProvider
 import org.walleth.data.exchangerate.ExchangeRateProvider
-import org.walleth.data.initTokens
+import org.walleth.data.networks.ChainInfoProvider
 import org.walleth.data.networks.CurrentAddressProvider
 import org.walleth.data.networks.InitializingCurrentAddressProvider
-import org.walleth.data.networks.NetworkDefinitionProvider
+import org.walleth.data.rpc.RPCProvider
+import org.walleth.data.rpc.RPCProviderImpl
 import org.walleth.data.syncprogress.SyncProgressProvider
 import org.walleth.data.tokens.CurrentTokenProvider
-import org.walleth.data.tokens.getRootTokenForChain
+import org.walleth.data.tokens.getRootToken
+import org.walleth.migrations.ChainAddingAndRecreatingMigration
 import org.walleth.migrations.RecreatingMigration
 import org.walleth.util.DelegatingSocketFactory
 import org.walleth.viewmodels.TransactionListViewModel
 import org.walleth.viewmodels.WalletConnectViewModel
 import java.io.File
+import java.math.BigInteger
 import java.net.Socket
+import java.security.Security
 import javax.net.SocketFactory
+
 
 open class App : MultiDexApplication() {
 
     private val koinModule = module {
-        single { Moshi.Builder().build() }
+        single { Moshi.Builder().add(BigIntegerAdapter()).build() }
+
         single {
             val socketFactory = object : DelegatingSocketFactory(SocketFactory.getDefault()) {
                 override fun configureSocket(socket: Socket): Socket {
@@ -75,24 +87,40 @@ open class App : MultiDexApplication() {
     val appDatabase: AppDatabase by inject()
     val settings: Settings by inject()
 
-    open fun createKoin() = module {
 
+    class BigIntegerAdapter {
+        @ToJson
+        internal fun toJson(bigInteger: BigInteger): String {
+            return bigInteger.toString()
+        }
+
+        @FromJson
+        internal fun fromJson(bigInteger: String): BigInteger {
+            return BigInteger(bigInteger)
+        }
+    }
+
+    open fun createKoin() = module {
         single { CryptoCompareExchangeProvider(this@App, get()) as ExchangeRateProvider }
         single { SyncProgressProvider() }
         single { keyStore as KeyStore }
         single { KotprefSettings as Settings }
         single { CurrentTokenProvider(get()) }
-
+        single { RPCProviderImpl(get(), get()) as RPCProvider }
         single {
             Room.databaseBuilder(applicationContext, AppDatabase::class.java, "maindb")
-                    .addMigrations(RecreatingMigration(1, 3), RecreatingMigration(2, 3))
-                    .build()
+                    .addMigrations(
+                            RecreatingMigration(1),
+                            RecreatingMigration(2),
+                            RecreatingMigration(3),
+                            ChainAddingAndRecreatingMigration(4)
+                    ).build()
         }
 
-        single { NetworkDefinitionProvider(get()) }
+        single { ChainInfoProvider(get(), get(), get(), assets) }
         single { BlockExplorerProvider(get()) }
         single {
-            InitializingCurrentAddressProvider(keyStore, get(), get(), applicationContext) as CurrentAddressProvider
+            InitializingCurrentAddressProvider(settings = get()) as CurrentAddressProvider
         }
         single { FourByteDirectoryImpl(get(), applicationContext) as FourByteDirectory }
 
@@ -102,6 +130,9 @@ open class App : MultiDexApplication() {
             }, get()) as WCSessionStore
         }
 
+        single {
+            NFCCredentialStore(this@App)
+        }
         viewModel { TransactionListViewModel(this@App, get(), get(), get()) }
         viewModel { WalletConnectViewModel(this@App, get(), get()) }
     }
@@ -114,14 +145,8 @@ open class App : MultiDexApplication() {
     override fun onCreate() {
         super.onCreate()
 
-        if (LeakCanary.isInAnalyzerProcess(this)) {
-            // This process is dedicated to LeakCanary for heap analysis.
-            // You should not init your app in this process.
-            return
-        }
-
-        LeakCanary.install(this)
-        // Normal app init code...
+        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+        Security.addProvider(BouncyCastleProvider())
 
         startKoin(this, listOf(koinModule, createKoin()))
 
@@ -137,30 +162,45 @@ open class App : MultiDexApplication() {
         AndroidThreeTen.init(this)
         applyNightMode(settings)
         executeCodeWeWillIgnoreInTests()
-        initTokens(settings, assets, appDatabase)
         if (settings.addressInitVersion < 2) {
             settings.addressInitVersion = 2
 
             GlobalScope.launch(Dispatchers.Default) {
-                keyStore.getAddresses().forEachIndexed { index, address ->
-
-                    appDatabase.addressBook.upsert(AddressBookEntry(
-                            name = "Default" + if (keyStore.getAddresses().size > 1) index else "",
-                            address = address,
-                            note = "default account with key",
-                            isNotificationWanted = false,
-                            trezorDerivationPath = null
-                    ))
-                }
                 appDatabase.addressBook.upsert(allPrePopulationAddresses)
             }
         }
         postInitCallbacks.forEach { it.invoke() }
 
         val currentTokenProvider: CurrentTokenProvider by inject()
-        val networkDefinitionProvider: NetworkDefinitionProvider by inject()
+        val chainInfoProvider: ChainInfoProvider by inject()
 
-        currentTokenProvider.setCurrent(getRootTokenForChain(networkDefinitionProvider.getCurrent()))
+        val initialChainObserver = object : Observer<ChainInfo> {
+            override fun onChanged(chainInfo: ChainInfo?) {
+                chainInfo?.getRootToken()?.let { rootToken ->
+                    initTokens(settings, assets, appDatabase)
+                    currentTokenProvider.setCurrent(rootToken)
+                    chainInfoProvider.removeObserver(this)
+                }
+            }
+        }
+
+        chainInfoProvider.observeForever(initialChainObserver)
+
+        if (settings.dataVersion < 1) {
+            settings.dataVersion = 1
+            GlobalScope.launch(Dispatchers.Default) {
+                appDatabase.addressBook.all().forEach {
+                    if (it.keySpec == null || it.keySpec?.isBlank() == true) {
+                        val type = if (keyStore.hasKeyForForAddress(it.address)) ACCOUNT_TYPE_BURNER else ACCOUNT_TYPE_WATCH_ONLY
+                        it.keySpec = AccountKeySpec(type).toJSON()
+                        appDatabase.addressBook.upsert(it)
+                    } else if (it.keySpec?.startsWith("m") == true) {
+                        it.keySpec = AccountKeySpec(ACCOUNT_TYPE_TREZOR, derivationPath = it.keySpec).toJSON()
+                        appDatabase.addressBook.upsert(it)
+                    }
+                }
+            }
+        }
     }
 
     open fun executeCodeWeWillIgnoreInTests() {

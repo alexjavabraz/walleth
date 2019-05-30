@@ -1,6 +1,6 @@
 package org.walleth.data.balances
 
-import android.arch.persistence.room.Entity
+import androidx.room.Entity
 import org.kethereum.model.Address
 import java.math.BigInteger
 
@@ -8,7 +8,7 @@ import java.math.BigInteger
 data class Balance(
         val address: Address,
         val tokenAddress: Address,
-        val chain: Long,
+        val chain: BigInteger,
 
         val block: Long,
         val balance: BigInteger

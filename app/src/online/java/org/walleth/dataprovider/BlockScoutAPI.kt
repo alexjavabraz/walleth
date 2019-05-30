@@ -7,15 +7,17 @@ import okhttp3.Request
 import org.json.JSONException
 import org.json.JSONObject
 import org.kethereum.functions.getTokenRelevantTo
+import org.kethereum.model.ChainId
 import org.kethereum.rpc.EthereumRPC
+import org.kethereum.rpc.HttpEthereumRPC
 import org.ligi.kaxt.letIf
 import org.ligi.tracedroid.logging.Log
 import org.walleth.data.AppDatabase
-import org.walleth.data.networks.NetworkDefinition
+import org.walleth.data.chaininfo.ChainInfo
 import org.walleth.data.transactions.TransactionEntity
 import org.walleth.data.transactions.TransactionState
 import org.walleth.kethereum.blockscout.getBlockscoutBaseURL
-import org.walleth.workers.getRPCEndpoint
+import org.walleth.util.getRPCEndpoint
 import java.io.IOException
 import java.security.cert.CertPathValidatorException
 
@@ -24,9 +26,9 @@ class BlockScoutAPI(private val appDatabase: AppDatabase,
 
     private var lastSeenTransactionsBlock = 0L
 
-    fun queryTransactions(addressHex: String, networkDefinition: NetworkDefinition) {
+    fun queryTransactions(addressHex: String, networkDefinition: ChainInfo) {
         networkDefinition.getRPCEndpoint()?.let { rpcEndpoint ->
-            val rpc = EthereumRPC(rpcEndpoint, okHttpClient)
+            val rpc = HttpEthereumRPC(rpcEndpoint, okHttpClient)
 
             val startBlock = lastSeenTransactionsBlock
             requestList(addressHex, networkDefinition, "txlist", rpc, startBlock)
@@ -34,14 +36,14 @@ class BlockScoutAPI(private val appDatabase: AppDatabase,
         }
     }
 
-    private fun requestList(addressHex: String, currentNetwork: NetworkDefinition, action: String, rpc: EthereumRPC, startBlock: Long) {
+    private fun requestList(addressHex: String, currentChain: ChainInfo, action: String, rpc: EthereumRPC, startBlock: Long) {
         val requestString = "module=account&action=$action&address=$addressHex&startblock=$startBlock&sort=asc"
 
         try {
-            val blockScoutResult = getBlockScoutResult(requestString, currentNetwork)
+            val blockScoutResult = getBlockScoutResult(requestString, currentChain)
             if (blockScoutResult != null && blockScoutResult.has("result")) {
                 val jsonArray = blockScoutResult.getJSONArray("result")
-                val newTransactions = parseBlockScoutTransactionList(jsonArray, currentNetwork.chain)
+                val newTransactions = parseBlockScoutTransactionList(jsonArray)
 
                 lastSeenTransactionsBlock = newTransactions.highestBlock
 
@@ -56,7 +58,7 @@ class BlockScoutAPI(private val appDatabase: AppDatabase,
                             val newEntity = TransactionEntity(it,
                                     newTransaction.transaction.getTokenRelevantTo(),
                                     transaction = newTransaction.transaction.copy(
-                                            chain = currentNetwork.chain.id.value,
+                                            chain = currentChain.chainId,
                                             creationEpochSecond = System.currentTimeMillis() / 1000
                                     ),
                                     signatureData = newTransaction.signatureData,
@@ -75,14 +77,14 @@ class BlockScoutAPI(private val appDatabase: AppDatabase,
         }
     }
 
-    private fun getBlockScoutResult(requestString: String, networkDefinition: NetworkDefinition) = try {
-        getBlockScoutResult(requestString, networkDefinition, false)
+    private fun getBlockScoutResult(requestString: String, chainInfo: ChainInfo) = try {
+        getBlockScoutResult(requestString, chainInfo, false)
     } catch (e: CertPathValidatorException) {
-        getBlockScoutResult(requestString, networkDefinition, true)
+        getBlockScoutResult(requestString, chainInfo, true)
     }
 
-    private fun getBlockScoutResult(requestString: String, networkDefinition: NetworkDefinition, httpFallback: Boolean): JSONObject? {
-        val baseURL = getBlockscoutBaseURL(networkDefinition.chain).letIf(httpFallback) {
+    private fun getBlockScoutResult(requestString: String, chainInfo: ChainInfo, httpFallback: Boolean): JSONObject? {
+        val baseURL = getBlockscoutBaseURL(ChainId(chainInfo.chainId))?.letIf(httpFallback) {
             replace("https://", "http://") // :-( https://github.com/walleth/walleth/issues/134 )
         }
         val urlString = "$baseURL/api?$requestString"
@@ -103,7 +105,4 @@ class BlockScoutAPI(private val appDatabase: AppDatabase,
         return null
     }
 
-    private fun reset() {
-        lastSeenTransactionsBlock = 0L
-    }
 }

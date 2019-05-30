@@ -1,10 +1,17 @@
 package org.walleth.infrastructure
 
-import android.arch.persistence.room.Room
 import android.content.Context
-import android.support.v7.app.AppCompatDelegate.MODE_NIGHT_YES
+import androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+import androidx.room.Room
+import com.squareup.moshi.Moshi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import org.kethereum.DEFAULT_GAS_PRICE
 import org.kethereum.keystore.api.KeyStore
-import org.koin.android.viewmodel.ext.koin.viewModel
+import org.kethereum.rpc.EthereumRPC
+import org.kethereum.rpc.model.StringResultResponse
+import org.koin.androidx.viewmodel.ext.koin.viewModel
 import org.koin.dsl.module.module
 import org.mockito.Mockito
 import org.mockito.Mockito.`when`
@@ -12,11 +19,11 @@ import org.mockito.Mockito.mock
 import org.walleth.App
 import org.walleth.contracts.FourByteDirectory
 import org.walleth.data.AppDatabase
-import org.walleth.data.DEFAULT_GAS_PRICE
 import org.walleth.data.config.Settings
 import org.walleth.data.exchangerate.ExchangeRateProvider
+import org.walleth.data.networks.ChainInfoProvider
 import org.walleth.data.networks.CurrentAddressProvider
-import org.walleth.data.networks.NetworkDefinitionProvider
+import org.walleth.data.rpc.RPCProvider
 import org.walleth.data.syncprogress.SyncProgressProvider
 import org.walleth.data.syncprogress.WallethSyncProgress
 import org.walleth.data.tokens.CurrentTokenProvider
@@ -45,21 +52,30 @@ class TestApp : App() {
         single { keyStore as KeyStore }
         single { mySettings }
         single { currentAddressProvider as CurrentAddressProvider }
-        single { networkDefinitionProvider }
+        single { chainInfoProvider }
         single { currentTokenProvider }
         single { testDatabase }
         single { testFourByteDirectory }
+        single {
+            mock(RPCProvider::class.java).apply {
+                `when`(get()).thenReturn(RPCMock)
+            }
+        }
 
-        viewModel { TransactionListViewModel(this@TestApp, get(),get(),get()) }
+        viewModel { TransactionListViewModel(this@TestApp, get(), get(), get()) }
     }
 
     override fun executeCodeWeWillIgnoreInTests() = Unit
     override fun onCreate() {
-        resetDB(this)
+        companionContext = this
+        resetDB()
         super.onCreate()
     }
 
     companion object {
+        val RPCMock = mock(EthereumRPC::class.java).apply {
+            `when`(estimateGas(any())).thenReturn(StringResultResponse("0x00"))
+        }
         val fixedValueExchangeProvider = FixedValueExchangeProvider()
         val keyStore = TestKeyStore()
         val mySettings = mock(Settings::class.java).apply {
@@ -73,8 +89,12 @@ class TestApp : App() {
             `when`(getGasPriceFor(any())).thenReturn(DEFAULT_GAS_PRICE)
         }
         val currentAddressProvider = DefaultCurrentAddressProvider(mySettings, keyStore)
-        val networkDefinitionProvider = NetworkDefinitionProvider(mySettings)
-        val currentTokenProvider = CurrentTokenProvider(networkDefinitionProvider)
+        val chainInfoProvider by lazy {
+            ChainInfoProvider(mySettings, testDatabase, Moshi.Builder().add(BigIntegerAdapter()).build(), companionContext!!.assets)
+        }
+        val currentTokenProvider by lazy {
+            CurrentTokenProvider(chainInfoProvider)
+        }
 
         val contractFunctionTextSignature1 = "aFunctionCall1(address)"
         val contractFunctionTextSignature2 = "aFunctionCall2(address)"
@@ -86,9 +106,15 @@ class TestApp : App() {
                 )
             }
         }
-        lateinit var testDatabase: AppDatabase
-        fun resetDB(context: Context) {
-            testDatabase = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+
+        val testDatabase by lazy {
+            Room.inMemoryDatabaseBuilder(companionContext!!, AppDatabase::class.java).build()
+        }
+        var companionContext: Context? = null
+        fun resetDB() {
+            GlobalScope.launch(Dispatchers.Default) {
+                testDatabase.clearAllTables()
+            }
         }
 
     }

@@ -1,14 +1,14 @@
 package org.walleth.ui
 
-import android.arch.paging.PagedListAdapter
-import android.support.v7.util.DiffUtil
+import androidx.paging.PagedListAdapter
+import androidx.recyclerview.widget.DiffUtil
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import org.walleth.R
 import org.walleth.data.AppDatabase
 import org.walleth.data.config.Settings
 import org.walleth.data.exchangerate.ExchangeRateProvider
-import org.walleth.data.networks.NetworkDefinitionProvider
+import org.walleth.data.networks.ChainInfoProvider
 import org.walleth.data.transactions.TransactionEntity
 
 enum class TransactionAdapterDirection {
@@ -29,7 +29,7 @@ class TransactionDiffCallback : DiffUtil.ItemCallback<TransactionEntity>() {
 
 class TransactionRecyclerAdapter(val appDatabase: AppDatabase,
                                  private val direction: TransactionAdapterDirection,
-                                 val networkDefinitionProvider: NetworkDefinitionProvider,
+                                 val chainInfoProvider: ChainInfoProvider,
                                  private val exchangeRateProvider: ExchangeRateProvider,
                                  val settings: Settings
 ) : PagedListAdapter<TransactionEntity, TransactionViewHolder>(TransactionDiffCallback()) {
@@ -38,7 +38,7 @@ class TransactionRecyclerAdapter(val appDatabase: AppDatabase,
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TransactionViewHolder {
         val itemView = LayoutInflater.from(parent.context).inflate(R.layout.transaction_item, parent, false)
-        return TransactionViewHolder(itemView, direction, networkDefinitionProvider, exchangeRateProvider, settings)
+        return TransactionViewHolder(itemView, direction, chainInfoProvider, exchangeRateProvider, settings)
     }
 
 }

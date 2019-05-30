@@ -2,6 +2,8 @@ package org.walleth.kethereum.android
 
 import android.os.Parcel
 import android.os.Parcelable
+import org.kethereum.extensions.hexToBigInteger
+import org.kethereum.extensions.toHexString
 import org.kethereum.model.Address
 import org.kethereum.model.ChainId
 import org.kethereum.model.Transaction
@@ -11,7 +13,7 @@ import java.math.BigInteger
 class TransactionParcel(val transaction: Transaction) : Parcelable {
 
     constructor(parcel: Parcel) : this(createTransactionWithDefaults(
-            chain = ChainId(parcel.readLong()),
+            chain = ChainId(parcel.readString().hexToBigInteger()),
             value = BigInteger(parcel.readString()),
             from = Address(parcel.readString()),
             txHash = parcel.readValue(null) as String?,
@@ -20,10 +22,10 @@ class TransactionParcel(val transaction: Transaction) : Parcelable {
             creationEpochSecond = parcel.readValue(null) as Long?,
             gasPrice = BigInteger(parcel.readString()),
             gasLimit = BigInteger(parcel.readString()),
-            input = parcel.createByteArray().toList()))
+            input = parcel.createByteArray()))
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
-        dest.writeLong(transaction.chain!!)
+        dest.writeString(transaction.chain!!.toHexString())
         dest.writeString(transaction.value.toString())
         dest.writeString(transaction.from?.hex)
         dest.writeValue(transaction.txHash)
@@ -32,7 +34,7 @@ class TransactionParcel(val transaction: Transaction) : Parcelable {
         dest.writeValue(transaction.creationEpochSecond)
         dest.writeString(transaction.gasPrice.toString())
         dest.writeString(transaction.gasLimit.toString())
-        dest.writeByteArray(transaction.input.toByteArray())
+        dest.writeByteArray(transaction.input)
     }
 
     override fun describeContents() = 0
